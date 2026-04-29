@@ -3,6 +3,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import { useTheme } from "../context/ThemeContext.jsx";
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
 import { supabase } from "../lib/supabase.js";
+import toast from "react-hot-toast";
 import {
   UserIcon,
   MailIcon,
@@ -275,12 +276,11 @@ export default function Settings() {
     }
 
     setProfileLoading(false);
-    setProfileMsg({
-      ok: true,
-      text: updates.email
-        ? "Check your new email for a confirmation link."
-        : "Profile updated successfully.",
-    });
+    const successText = updates.email
+      ? "Check your new email for a confirmation link."
+      : "Profile updated successfully.";
+    setProfileMsg({ ok: true, text: successText });
+    toast.success(successText);
   }
 
   async function handlePasswordSave(e) {
@@ -320,6 +320,7 @@ export default function Settings() {
       setNewPw("");
       setConfirmPw("");
       setPwMsg({ ok: true, text: "Password updated successfully." });
+      toast.success("Password updated successfully.");
     } else {
       setPwMsg({ ok: false, text: result.error });
     }

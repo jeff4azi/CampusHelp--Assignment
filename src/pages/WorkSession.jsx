@@ -5,6 +5,7 @@ import { useSessions } from "../hooks/useSessions.js";
 import { formatCurrency, formatRelativeTime } from "../utils/formatters.js";
 import { supabase } from "../lib/supabase.js";
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
+import toast from "react-hot-toast";
 
 // ── Phone normalisation ───────────────────────────────────────────────────
 // Converts local Nigerian format (080..., 090...) to international (234...)
@@ -146,6 +147,9 @@ export default function WorkSession() {
     setCompleting(true);
     try {
       await completeSession(session.id);
+      toast.success("Session marked as completed! 🎉");
+    } catch {
+      toast.error("Failed to complete session. Please try again.");
     } finally {
       setCompleting(false);
     }

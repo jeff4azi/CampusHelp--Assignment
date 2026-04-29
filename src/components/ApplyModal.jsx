@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../hooks/useAuth.js";
 import { usePosts } from "../hooks/usePosts.js";
 import { formatCurrency } from "../utils/formatters.js";
+import toast from "react-hot-toast";
 
 export default function ApplyModal({ post, onClose }) {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function ApplyModal({ post, onClose }) {
     setSubmitting(true);
     try {
       await submitOffer(post.id, user.id, message.trim());
+      toast.success("Offer submitted! We'll notify you if accepted.");
       onClose();
     } catch (err) {
       setError(

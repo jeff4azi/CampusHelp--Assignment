@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import { usePosts } from "../hooks/usePosts.js";
 import { CheckCircleIcon } from "./Icons.jsx";
 import { improveDescription } from "../utils/openai.js";
+import toast from "react-hot-toast";
 
 const inputCls = `w-full rounded-xl px-3.5 py-2.5 text-[13.5px] transition-all outline-none`;
 
@@ -46,6 +47,7 @@ export default function CreatePostModal({ onClose }) {
       const better = await improveDescription(form.description, form.course);
       setForm((prev) => ({ ...prev, description: better }));
       setImproved(true);
+      toast.success("Description improved!");
       setTimeout(() => setImproved(false), 3000);
     } finally {
       setImproving(false);
@@ -70,6 +72,7 @@ export default function CreatePostModal({ onClose }) {
     setError("");
     try {
       await addPost(form, user.id);
+      toast.success("Request posted successfully! 🎉");
       setPosted(form);
     } catch {
       setError("Failed to post request. Please try again.");

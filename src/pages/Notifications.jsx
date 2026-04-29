@@ -3,6 +3,7 @@ import { useNotifications } from "../hooks/useNotifications.js";
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
 import { BellIcon, CheckCircleIcon } from "../components/Icons.jsx";
 import { formatRelativeTime } from "../utils/formatters.js";
+import toast from "react-hot-toast";
 
 const TYPE_CONFIG = {
   new_post: { color: "bg-indigo-500/15 text-indigo-400", label: "New Job" },
@@ -38,7 +39,11 @@ export default function Notifications() {
 
           {notifications.length > 0 && (
             <button
-              onClick={markAllRead}
+              onClick={() => {
+                markAllRead();
+                if (hasUnread)
+                  toast.success("All notifications marked as read.");
+              }}
               disabled={!hasUnread}
               className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               style={{

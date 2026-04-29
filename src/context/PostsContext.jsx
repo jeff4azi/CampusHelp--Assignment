@@ -8,6 +8,7 @@ import {
 import { supabase } from "../lib/supabase.js";
 import { SessionsContext } from "./SessionsContext.jsx";
 import { NotificationsContext } from "./NotificationsContext.jsx";
+import toast from "react-hot-toast";
 
 export const PostsContext = createContext(null);
 
@@ -162,6 +163,7 @@ export function PostsProvider({ children }) {
       refId: session.id,
     });
 
+    toast.success("Offer accepted! Session started.");
     return session;
   }
 
