@@ -12,6 +12,14 @@ const TYPE_CONFIG = {
     color: "bg-emerald-500/15 text-emerald-400",
     label: "Accepted",
   },
+  withdrawal_pending: {
+    color: "bg-amber-500/15 text-amber-400",
+    label: "Withdrawal",
+  },
+  withdrawal_paid: {
+    color: "bg-emerald-500/15 text-emerald-400",
+    label: "Paid Out",
+  },
 };
 
 export default function Notifications() {

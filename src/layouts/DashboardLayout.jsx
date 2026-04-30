@@ -17,6 +17,7 @@ import {
   ChevronRightIcon,
   SunIcon,
   MoonIcon,
+  WalletIcon,
 } from "../components/Icons.jsx";
 
 const NAV_MAIN = [
@@ -25,6 +26,7 @@ const NAV_MAIN = [
   { to: "/my-jobs", label: "My Jobs", Icon: BriefcaseIcon, end: false },
   { to: "/helping", label: "Helping", Icon: HandshakeIcon, end: false },
   { to: "/completed", label: "Completed", Icon: CheckCircleIcon, end: false },
+  { to: "/earnings", label: "Earnings", Icon: WalletIcon, end: false },
 ];
 
 const NAV_BOTTOM = [
@@ -48,6 +50,7 @@ const PAGE_TITLES = {
   "/completed": "Completed",
   "/notifications": "Notifications",
   "/settings": "Settings",
+  "/earnings": "Earnings",
 };
 
 function SidebarLink({

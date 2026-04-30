@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { useSessions } from "../hooks/useSessions.js";
+import { usePosts } from "../hooks/usePosts.js";
 import { formatCurrency, formatRelativeTime } from "../utils/formatters.js";
 import { supabase } from "../lib/supabase.js";
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
@@ -99,11 +100,13 @@ export default function WorkSession() {
   const { id } = useParams();
   const { user } = useAuth();
   const { sessions, sessionsLoading, completeSession } = useSessions();
+  const { syncPostStatus } = usePosts();
   const navigate = useNavigate();
   const [completing, setCompleting] = useState(false);
   const [otherPhone, setOtherPhone] = useState(null);
   const [myPhone, setMyPhone] = useState(null);
   const [profilesLoading, setProfilesLoading] = useState(true);
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
 
   const session = sessions.find((s) => s.id === id);
 
@@ -124,6 +127,8 @@ export default function WorkSession() {
       setOtherPhone(otherData?.phone ?? null);
       setMyPhone(myData?.phone ?? null);
       setProfilesLoading(false);
+      // Auto-show modal if user has no phone number
+      if (!myData?.phone) setShowPhoneModal(true);
     });
   }, [session?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -146,7 +151,9 @@ export default function WorkSession() {
   async function handleComplete() {
     setCompleting(true);
     try {
-      await completeSession(session.id);
+      await completeSession(session.id, user.id, isOwner ? "owner" : "helper");
+      // Sync post status in PostsContext so UI updates everywhere
+      if (session.postId) syncPostStatus(session.postId, "completed");
       toast.success("Session marked as completed! 🎉");
     } catch {
       toast.error("Failed to complete session. Please try again.");
@@ -245,32 +252,30 @@ export default function WorkSession() {
           )}
         </div>
 
-        {/* No-phone banner — prompt current user to add their number */}
+        {/* No-phone banner — replaced by modal, keep small inline reminder */}
         {isActive && !profilesLoading && !myPhone && (
-          <div
-            className="rounded-2xl p-4 mb-4 flex items-start gap-3"
+          <button
+            onClick={() => setShowPhoneModal(true)}
+            className="w-full flex items-center gap-3 rounded-2xl p-3.5 mb-4 text-left cursor-pointer transition-all"
             style={{
               background: "rgba(251,191,36,0.08)",
               border: "1px solid rgba(251,191,36,0.2)",
             }}
           >
-            <span className="text-amber-400 text-lg shrink-0">📱</span>
+            <span className="text-lg shrink-0">📱</span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-amber-400">
+              <p className="text-[13px] font-semibold text-amber-400">
                 Add your WhatsApp number
               </p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-2)" }}>
-                Your match can't reach you via WhatsApp yet. Add your number in
-                Settings so they can contact you.
-              </p>
-              <button
-                onClick={() => navigate("/settings")}
-                className="mt-2 text-xs font-semibold text-amber-400 underline underline-offset-2 cursor-pointer"
+              <p
+                className="text-[11px] mt-0.5"
+                style={{ color: "var(--text-2)" }}
               >
-                Go to Settings →
-              </button>
+                Tap to add your number so your match can reach you
+              </p>
             </div>
-          </div>
+            <span className="text-amber-400 text-lg ml-auto shrink-0">→</span>
+          </button>
         )}
 
         {/* WhatsApp button — shown while session is active */}
@@ -303,6 +308,78 @@ export default function WorkSession() {
           </div>
         )}
       </div>
+
+      {/* Phone number required modal */}
+      {showPhoneModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md px-4 pb-4 sm:pb-0"
+          onMouseDown={(e) =>
+            e.target === e.currentTarget && setShowPhoneModal(false)
+          }
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6 fade-in"
+            style={{
+              background: "var(--bg-raised)",
+              border: "1px solid rgba(251,191,36,0.3)",
+              boxShadow: "var(--shadow-card)",
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{
+                background: "rgba(251,191,36,0.1)",
+                border: "1px solid rgba(251,191,36,0.2)",
+              }}
+            >
+              <span className="text-2xl">📱</span>
+            </div>
+
+            <h2
+              className="text-[15px] font-bold text-center mb-2"
+              style={{ color: "var(--text-1)" }}
+            >
+              Add your WhatsApp number
+            </h2>
+            <p
+              className="text-[13px] text-center leading-relaxed mb-6"
+              style={{ color: "var(--text-2)" }}
+            >
+              Your match needs your WhatsApp number to contact you and
+              coordinate the work. Without it, they can't reach you.
+            </p>
+
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={() => {
+                  setShowPhoneModal(false);
+                  navigate("/settings");
+                }}
+                className="w-full py-3 text-white font-bold rounded-xl text-[13.5px] transition-all cursor-pointer active:scale-95"
+                style={{
+                  background: "var(--accent)",
+                  boxShadow: "var(--shadow-btn)",
+                }}
+              >
+                Go to Settings →
+              </button>
+              <button
+                onClick={() => setShowPhoneModal(false)}
+                className="w-full py-2.5 text-[13px] font-medium rounded-xl cursor-pointer transition-colors"
+                style={{
+                  color: "var(--text-3)",
+                  background: "var(--bg-hover)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                I'll do it later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

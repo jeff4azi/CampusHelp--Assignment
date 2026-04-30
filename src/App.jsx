@@ -18,6 +18,8 @@ import Completed from "./pages/Completed.jsx";
 import WorkSession from "./pages/WorkSession.jsx";
 import Settings from "./pages/Settings.jsx";
 import Notifications from "./pages/Notifications.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import Earnings from "./pages/Earnings.jsx";
 
 function PrivateRoute({ children }) {
   return <AuthGuard>{children}</AuthGuard>;
@@ -122,6 +124,22 @@ export default function App() {
                     element={
                       <PrivateRoute>
                         <Notifications />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin"
+                    element={
+                      <PrivateRoute>
+                        <AdminDashboard />
+                      </PrivateRoute>
+                    }
+                  />
+                  <Route
+                    path="/earnings"
+                    element={
+                      <PrivateRoute>
+                        <Earnings />
                       </PrivateRoute>
                     }
                   />

@@ -9,6 +9,7 @@ import { supabase } from "../lib/supabase.js";
 import { SessionsContext } from "./SessionsContext.jsx";
 import { NotificationsContext } from "./NotificationsContext.jsx";
 import toast from "react-hot-toast";
+import { analytics } from "../utils/analytics.js";
 
 export const PostsContext = createContext(null);
 
@@ -17,11 +18,7 @@ export function PostsProvider({ children }) {
   const { createNotification } = useContext(NotificationsContext);
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
-
-  // offers keyed by postId: { [postId]: Offer[] }
   const [offersByPost, setOffersByPost] = useState({});
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   function mapPost(p) {
     return {
@@ -47,15 +44,12 @@ export function PostsProvider({ children }) {
     };
   }
 
-  // ── Posts ─────────────────────────────────────────────────────────────────
-
   const fetchPosts = useCallback(async () => {
     setPostsLoading(true);
     const { data, error } = await supabase
       .from("posts")
       .select("*")
       .order("created_at", { ascending: false });
-
     if (!error && data) setPosts(data.map(mapPost));
     setPostsLoading(false);
   }, []);
@@ -79,6 +73,12 @@ export function PostsProvider({ children }) {
 
     if (!error && data) {
       setPosts((prev) => [mapPost(data), ...prev]);
+      analytics.postCreated(
+        userId,
+        data.id,
+        postData.course,
+        Number(postData.budget),
+      );
     }
   }
 
@@ -87,9 +87,7 @@ export function PostsProvider({ children }) {
       .from("posts")
       .update({ status })
       .eq("id", postId);
-
     if (!error) {
-      // Update local state directly — no .select() to avoid 406 from RLS
       setPosts((prev) =>
         prev.map((p) => (p.id === postId ? { ...p, status } : p)),
       );
@@ -98,15 +96,12 @@ export function PostsProvider({ children }) {
     }
   }
 
-  // ── Offers ────────────────────────────────────────────────────────────────
-
   async function fetchOffersForPost(postId) {
     const { data, error } = await supabase
       .from("offers")
       .select("*")
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
-
     if (!error && data) {
       setOffersByPost((prev) => ({ ...prev, [postId]: data.map(mapOffer) }));
     }
@@ -118,18 +113,17 @@ export function PostsProvider({ children }) {
       .insert({ post_id: postId, helper_id: helperId, message })
       .select()
       .single();
-
     if (error) throw error;
-
     setOffersByPost((prev) => ({
       ...prev,
       [postId]: [...(prev[postId] ?? []), mapOffer(data)],
     }));
-    // Notification is handled by the on_offer_created DB trigger
+    analytics.offerSubmitted(helperId, postId, data.id);
   }
 
-  async function acceptOffer(offer, postOwnerId) {
-    // 1. Mark offer as accepted
+  // Called AFTER successful payment — creates session and marks everything
+  async function acceptOffer(offer, postOwnerId, paymentData = null) {
+    // 1. Mark offer accepted
     const { error: offerErr } = await supabase
       .from("offers")
       .update({ accepted: true })
@@ -139,11 +133,12 @@ export function PostsProvider({ children }) {
     // 2. Update post status
     await updatePostStatus(offer.postId, "in_progress");
 
-    // 3. Create work session — this is the core change
+    // 3. Create work session with payment info
     const session = await createSession({
       postId: offer.postId,
       ownerId: postOwnerId,
       helperId: offer.helperId,
+      paymentData,
     });
 
     // 4. Update local offers state
@@ -154,7 +149,7 @@ export function PostsProvider({ children }) {
       ),
     }));
 
-    // Notify the helper their offer was accepted
+    // 5. Notify helper
     await createNotification({
       userId: offer.helperId,
       type: "offer_accepted",
@@ -163,8 +158,28 @@ export function PostsProvider({ children }) {
       refId: session.id,
     });
 
+    analytics.offerAccepted(
+      postOwnerId,
+      offer.postId,
+      offer.id,
+      session.id,
+      offer.budget,
+    );
     toast.success("Offer accepted! Session started.");
     return session;
+  }
+
+  async function deletePost(postId) {
+    const { error } = await supabase.from("posts").delete().eq("id", postId);
+    if (error) throw error;
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+  }
+
+  // Called after session completion to sync post status in local state
+  function syncPostStatus(postId, status) {
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, status } : p)),
+    );
   }
 
   return (
@@ -174,10 +189,12 @@ export function PostsProvider({ children }) {
         postsLoading,
         addPost,
         updatePostStatus,
+        syncPostStatus,
         offersByPost,
         fetchOffersForPost,
         submitOffer,
         acceptOffer,
+        deletePost,
       }}
     >
       {children}

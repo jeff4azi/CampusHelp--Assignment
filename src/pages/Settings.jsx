@@ -208,6 +208,8 @@ export default function Settings() {
   const [profileMsg, setProfileMsg] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
 
+  const [bio, setBio] = useState("");
+  const [skills, setSkills] = useState(""); // comma-separated string
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [currentPw, setCurrentPw] = useState("");
@@ -231,11 +233,13 @@ export default function Settings() {
     if (!user?.id) return;
     supabase
       .from("profiles")
-      .select("phone")
+      .select("phone, bio, skills")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
         if (data?.phone) setPhone(data.phone);
+        if (data?.bio) setBio(data.bio);
+        if (data?.skills?.length) setSkills(data.skills.join(", "));
       });
   }, [user?.id]);
 
@@ -270,6 +274,26 @@ export default function Settings() {
       const result = await updatePhone(phone.trim());
       if (!result.success) {
         setProfileMsg({ ok: false, text: result.error });
+        setProfileLoading(false);
+        return;
+      }
+    }
+
+    // Save bio and skills to profiles
+    if (bio.trim() || skills.trim()) {
+      const skillsArray = skills
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update({
+          bio: bio.trim() || null,
+          skills: skillsArray.length ? skillsArray : null,
+        })
+        .eq("id", user.id);
+      if (profileErr) {
+        setProfileMsg({ ok: false, text: profileErr.message });
         setProfileLoading(false);
         return;
       }
@@ -437,6 +461,37 @@ export default function Settings() {
                   >
                     Used so your match can contact you via WhatsApp. Not shown
                     publicly.
+                  </p>
+                </div>
+
+                {/* Bio */}
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel isDark={isDark}>Bio</FieldLabel>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    rows={3}
+                    placeholder="Tell others about yourself, your expertise, and what you can help with…"
+                    disabled={profileLoading}
+                    className={inputCls + " resize-none"}
+                  />
+                </div>
+
+                {/* Skills */}
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel isDark={isDark}>Skills</FieldLabel>
+                  <input
+                    value={skills}
+                    onChange={(e) => setSkills(e.target.value)}
+                    placeholder="e.g. Python, Calculus, Essay Writing"
+                    disabled={profileLoading}
+                    className={inputCls}
+                  />
+                  <p
+                    className={`text-xs ${isDark ? "text-gray-600" : "text-slate-400"}`}
+                  >
+                    Comma-separated. Shown on your posts to attract the right
+                    helpers.
                   </p>
                 </div>
 

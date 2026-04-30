@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect } from "react";
 import { supabase } from "../lib/supabase.js";
 import toast from "react-hot-toast";
+import { analytics, identifyUser, resetAnalytics } from "../utils/analytics.js";
 
 export const AuthContext = createContext(null);
 
@@ -42,6 +43,8 @@ export function AuthProvider({ children }) {
       toast.error(error.message);
       return { success: false, error: error.message };
     }
+    analytics.userLoggedIn(data.user.id, "email");
+    identifyUser(data.user.id, { email });
     toast.success("Welcome back!");
     return { success: true, user: data.user };
   }
@@ -56,12 +59,15 @@ export function AuthProvider({ children }) {
       toast.error(error.message);
       return { success: false, error: error.message };
     }
-    // Save phone to profiles (trigger already created the row)
     if (phone && data.user) {
       await supabase
         .from("profiles")
         .upsert({ id: data.user.id, email, full_name: username, phone })
         .eq("id", data.user.id);
+    }
+    if (data.user) {
+      analytics.userSignedUp(data.user.id, "email");
+      identifyUser(data.user.id, { email, username });
     }
     toast.success("Account created successfully!");
     return { success: true, user: data.user };
@@ -69,6 +75,7 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     await supabase.auth.signOut();
+    resetAnalytics();
     setUser(null);
     toast("Logged out", { icon: "👋" });
   }
