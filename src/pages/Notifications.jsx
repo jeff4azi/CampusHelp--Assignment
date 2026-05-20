@@ -20,6 +20,18 @@ const TYPE_CONFIG = {
     color: "bg-emerald-500/15 text-emerald-400",
     label: "Paid Out",
   },
+  helper_invited: {
+    color: "bg-violet-500/15 text-violet-400",
+    label: "Invited",
+  },
+  dispute_raised: {
+    color: "bg-red-500/15 text-red-400",
+    label: "Dispute",
+  },
+  dispute_resolved: {
+    color: "bg-emerald-500/15 text-emerald-400",
+    label: "Resolved",
+  },
 };
 
 export default function Notifications() {
@@ -34,6 +46,13 @@ export default function Notifications() {
     else if (notif.type === "new_offer") navigate("/my-jobs");
     else if (notif.type === "offer_accepted" && notif.refId)
       navigate(`/session/${notif.refId}`);
+    else if (notif.type === "helper_invited" && notif.refId)
+      navigate("/marketplace");
+    else if (
+      (notif.type === "dispute_raised" || notif.type === "dispute_resolved") &&
+      notif.refId
+    )
+      navigate(`/dispute/${notif.refId}`);
   }
 
   return (

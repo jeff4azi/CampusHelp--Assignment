@@ -72,7 +72,8 @@ export default function AdminDashboard() {
   const [posts, setPosts] = useState([]);
   const [reports, setReports] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
-  const [tab, setTab] = useState("overview"); // overview | users | posts | reports
+  const [disputes, setDisputes] = useState([]);
+  const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
 
   // Check admin status
@@ -98,6 +99,7 @@ export default function AdminDashboard() {
         { data: paymentsData },
         { data: reportsData },
         { data: withdrawalsData },
+        { data: disputesData },
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -128,7 +130,14 @@ export default function AdminDashboard() {
           .limit(50),
         supabase
           .from("withdrawals")
-          .select("*, profiles(full_name, email)")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supabase
+          .from("disputes")
+          .select(
+            "id, reason, status, created_at, updated_at, session_id, raised_by, resolution, work_sessions(owner_id, helper_id, posts(course, budget))",
+          )
           .order("created_at", { ascending: false })
           .limit(100),
       ]);
@@ -150,12 +159,42 @@ export default function AdminDashboard() {
         pendingReports: (reportsData || []).filter(
           (r) => r.status === "pending",
         ).length,
+        openDisputes: (disputesData || []).filter(
+          (d) => d.status === "open" || d.status === "under_review",
+        ).length,
       });
 
       setUsers(profilesData || []);
       setPosts(postsData || []);
       setReports(reportsData || []);
-      setWithdrawals(withdrawalsData || []);
+
+      // Enrich withdrawals with helper profiles (avoid FK join issue)
+      const rawWithdrawals = withdrawalsData || [];
+      if (rawWithdrawals.length > 0) {
+        const helperIds = [
+          ...new Set(rawWithdrawals.map((w) => w.helper_id).filter(Boolean)),
+        ];
+        let profileMap = {};
+        if (helperIds.length > 0) {
+          const { data: wProfiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .in("id", helperIds);
+          wProfiles?.forEach((p) => {
+            profileMap[p.id] = p;
+          });
+        }
+        setWithdrawals(
+          rawWithdrawals.map((w) => ({
+            ...w,
+            profiles: profileMap[w.helper_id] ?? null,
+          })),
+        );
+      } else {
+        setWithdrawals([]);
+      }
+
+      setDisputes(disputesData || []);
     } finally {
       setLoading(false);
     }
@@ -213,7 +252,6 @@ export default function AdminDashboard() {
   }
 
   async function handleMarkWithdrawalPaid(withdrawalId, helperId) {
-    // Update withdrawal status — DB trigger will auto-send in-app notification
     const { error } = await supabase
       .from("withdrawals")
       .update({
@@ -227,16 +265,31 @@ export default function AdminDashboard() {
       return;
     }
 
-    // Also mark the payments as withdrawn
+    // Mark payments as withdrawn — try payment_ids first, fall back to helper_id
     const withdrawal = withdrawals.find((w) => w.id === withdrawalId);
-    if (withdrawal?.payment_ids?.length) {
+    const realPaymentIds = (withdrawal?.payment_ids || []).filter(
+      (id) => id && !id.startsWith("session_"),
+    );
+
+    if (realPaymentIds.length > 0) {
       await supabase
         .from("payments")
         .update({
           withdrawal_status: "completed",
           withdrawn_at: new Date().toISOString(),
         })
-        .in("id", withdrawal.payment_ids);
+        .in("id", realPaymentIds);
+    } else {
+      // Fallback: mark ALL released pending payments for this helper as withdrawn
+      await supabase
+        .from("payments")
+        .update({
+          withdrawal_status: "completed",
+          withdrawn_at: new Date().toISOString(),
+        })
+        .eq("helper_id", helperId)
+        .eq("withdrawal_status", "pending")
+        .eq("escrow_status", "released");
     }
 
     toast.success("Withdrawal marked as paid. Helper has been notified.");
@@ -293,6 +346,10 @@ export default function AdminDashboard() {
     { id: "overview", label: "Overview" },
     { id: "users", label: `Users (${users.length})` },
     { id: "posts", label: `Posts (${posts.length})` },
+    {
+      id: "disputes",
+      label: `Disputes${stats?.openDisputes ? ` (${stats.openDisputes})` : ""}`,
+    },
     {
       id: "reports",
       label: `Reports${stats?.pendingReports ? ` (${stats.pendingReports})` : ""}`,
@@ -394,6 +451,12 @@ export default function AdminDashboard() {
                   value={formatCurrency(stats.totalRevenue)}
                   sub="15% of all paid jobs"
                   color="emerald"
+                />
+                <StatCard
+                  label="Open Disputes"
+                  value={stats.openDisputes}
+                  sub="Needs review"
+                  color="red"
                 />
                 <StatCard
                   label="Pending Reports"
@@ -629,6 +692,262 @@ export default function AdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* ── DISPUTES ── */}
+            {tab === "disputes" && (
+              <div className="flex flex-col gap-3">
+                {disputes.length === 0 ? (
+                  <div
+                    className="text-center py-16 rounded-2xl"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <p className="text-3xl mb-2">⚖️</p>
+                    <p
+                      className="text-sm font-semibold"
+                      style={{ color: "var(--text-1)" }}
+                    >
+                      No disputes yet
+                    </p>
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: "var(--text-3)" }}
+                    >
+                      Disputes will appear here when users raise them
+                    </p>
+                  </div>
+                ) : (
+                  disputes.map((d) => {
+                    const isOpen =
+                      d.status === "open" || d.status === "under_review";
+                    const statusColors = {
+                      open: { bg: "rgba(239,68,68,0.1)", color: "#f87171" },
+                      under_review: {
+                        bg: "rgba(251,191,36,0.1)",
+                        color: "#fbbf24",
+                      },
+                      resolved_helper: {
+                        bg: "rgba(52,211,153,0.1)",
+                        color: "#34d399",
+                      },
+                      resolved_student: {
+                        bg: "rgba(96,165,250,0.1)",
+                        color: "#60a5fa",
+                      },
+                      closed: { bg: "rgba(148,163,184,0.1)", color: "#94a3b8" },
+                    };
+                    const sc = statusColors[d.status] ?? statusColors.open;
+                    const course = d.work_sessions?.posts?.course ?? "—";
+                    const budget = d.work_sessions?.posts?.budget;
+
+                    return (
+                      <div
+                        key={d.id}
+                        className="rounded-2xl p-4"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: isOpen
+                            ? "1px solid rgba(239,68,68,0.25)"
+                            : "1px solid var(--border)",
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            {/* Status + course */}
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+                                style={{ background: sc.bg, color: sc.color }}
+                              >
+                                {d.status.replace("_", " ")}
+                              </span>
+                              <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{
+                                  background: "rgba(99,102,241,0.1)",
+                                  color: "#818cf8",
+                                }}
+                              >
+                                {course}
+                              </span>
+                              {budget && (
+                                <span
+                                  className="text-[11px] font-bold"
+                                  style={{ color: "#34d399" }}
+                                >
+                                  {formatCurrency(budget)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Reason */}
+                            <p
+                              className="text-[13px] font-semibold"
+                              style={{ color: "var(--text-1)" }}
+                            >
+                              {d.reason}
+                            </p>
+
+                            {/* Resolution if resolved */}
+                            {d.resolution && (
+                              <p
+                                className="text-[11px] mt-0.5 italic"
+                                style={{ color: "var(--text-3)" }}
+                              >
+                                Resolution: {d.resolution}
+                              </p>
+                            )}
+
+                            <p
+                              className="text-[11px] mt-1"
+                              style={{ color: "var(--text-3)" }}
+                            >
+                              Raised {formatRelativeTime(d.created_at)}
+                              {d.updated_at !== d.created_at &&
+                                ` · Updated ${formatRelativeTime(d.updated_at)}`}
+                            </p>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            <button
+                              onClick={() => navigate(`/dispute/${d.id}`)}
+                              className="text-[11px] px-3 py-1.5 rounded-lg cursor-pointer font-bold transition-colors"
+                              style={{
+                                background: "rgba(99,102,241,0.1)",
+                                color: "#818cf8",
+                                border: "1px solid rgba(99,102,241,0.2)",
+                              }}
+                            >
+                              View →
+                            </button>
+                            {d.status === "open" && (
+                              <button
+                                onClick={async () => {
+                                  const { error } = await supabase.rpc(
+                                    "mark_dispute_under_review",
+                                    {
+                                      p_dispute_id: d.id,
+                                      p_admin_id: user.id,
+                                    },
+                                  );
+                                  if (error) {
+                                    toast.error(error.message);
+                                  } else {
+                                    toast.success("Marked as under review.");
+                                    setDisputes((prev) =>
+                                      prev.map((x) =>
+                                        x.id === d.id
+                                          ? { ...x, status: "under_review" }
+                                          : x,
+                                      ),
+                                    );
+                                  }
+                                }}
+                                className="text-[11px] px-3 py-1.5 rounded-lg cursor-pointer font-bold transition-colors"
+                                style={{
+                                  background: "rgba(251,191,36,0.1)",
+                                  color: "#fbbf24",
+                                  border: "1px solid rgba(251,191,36,0.2)",
+                                }}
+                              >
+                                🔍 Review
+                              </button>
+                            )}
+                            {isOpen && (
+                              <>
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm("Resolve in favour of HELPER?")
+                                    )
+                                      return;
+                                    const { error } = await supabase.rpc(
+                                      "resolve_dispute_helper",
+                                      {
+                                        p_dispute_id: d.id,
+                                        p_admin_id: user.id,
+                                      },
+                                    );
+                                    if (error) {
+                                      toast.error(error.message);
+                                    } else {
+                                      toast.success("Resolved — helper wins.");
+                                      setDisputes((prev) =>
+                                        prev.map((x) =>
+                                          x.id === d.id
+                                            ? {
+                                                ...x,
+                                                status: "resolved_helper",
+                                              }
+                                            : x,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="text-[11px] px-3 py-1.5 rounded-lg cursor-pointer font-bold transition-colors"
+                                  style={{
+                                    background: "rgba(52,211,153,0.1)",
+                                    color: "#34d399",
+                                    border: "1px solid rgba(52,211,153,0.2)",
+                                  }}
+                                >
+                                  ✅ Helper
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm(
+                                        "Resolve in favour of STUDENT? This refunds payment.",
+                                      )
+                                    )
+                                      return;
+                                    const { error } = await supabase.rpc(
+                                      "resolve_dispute_student",
+                                      {
+                                        p_dispute_id: d.id,
+                                        p_admin_id: user.id,
+                                      },
+                                    );
+                                    if (error) {
+                                      toast.error(error.message);
+                                    } else {
+                                      toast.success(
+                                        "Resolved — student refunded.",
+                                      );
+                                      setDisputes((prev) =>
+                                        prev.map((x) =>
+                                          x.id === d.id
+                                            ? {
+                                                ...x,
+                                                status: "resolved_student",
+                                              }
+                                            : x,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="text-[11px] px-3 py-1.5 rounded-lg cursor-pointer font-bold transition-colors"
+                                  style={{
+                                    background: "rgba(96,165,250,0.1)",
+                                    color: "#60a5fa",
+                                    border: "1px solid rgba(96,165,250,0.2)",
+                                  }}
+                                >
+                                  💳 Student
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             )}
 

@@ -4,6 +4,8 @@ import { useSessions } from "../hooks/useSessions.js";
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
 import { formatCurrency, formatRelativeTime } from "../utils/formatters.js";
 import ReviewModal from "../components/ReviewModal.jsx";
+import HelperProfileModal from "../components/HelperProfileModal.jsx";
+import { LevelBadge, StarRating } from "../components/ReputationBadge.jsx";
 import { supabase } from "../lib/supabase.js";
 
 function StarDisplay({ rating, size = "sm" }) {
@@ -33,8 +35,10 @@ function StarDisplay({ rating, size = "sm" }) {
 export default function Completed() {
   const { user } = useAuth();
   const { sessions, sessionsLoading } = useSessions();
-  const [reviewModal, setReviewModal] = useState(null); // { session, revieweeId, revieweeName }
-  const [myReviews, setMyReviews] = useState({}); // sessionId → review
+  const [reviewModal, setReviewModal] = useState(null);
+  const [profileModal, setProfileModal] = useState(null); // userId
+  const [myReviews, setMyReviews] = useState({});
+  const [otherProfiles, setOtherProfiles] = useState({}); // userId → profile
 
   const completedSessions = sessions.filter(
     (s) =>
@@ -58,6 +62,30 @@ export default function Completed() {
             map[r.session_id] = r;
           });
           setMyReviews(map);
+        }
+      });
+  }, [user?.id, completedSessions.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the other person's profile for each session
+  useEffect(() => {
+    if (!user?.id || completedSessions.length === 0) return;
+    const otherIds = completedSessions.map((s) =>
+      s.ownerId === user.id ? s.helperId : s.ownerId,
+    );
+    const uniqueIds = [...new Set(otherIds)];
+    supabase
+      .from("profiles")
+      .select(
+        "id, full_name, rating, total_reviews, level_name, completed_jobs, badges",
+      )
+      .in("id", uniqueIds)
+      .then(({ data }) => {
+        if (data) {
+          const map = {};
+          data.forEach((p) => {
+            map[p.id] = p;
+          });
+          setOtherProfiles(map);
         }
       });
   }, [user?.id, completedSessions.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -99,6 +127,9 @@ export default function Completed() {
               const isOwner = session.ownerId === user?.id;
               const role = isOwner ? "Owner" : "Helper";
               const alreadyReviewed = Boolean(myReviews[session.id]);
+              const otherId = isOwner ? session.helperId : session.ownerId;
+              const otherProfile = otherProfiles[otherId];
+              const otherLabel = isOwner ? "Helper" : "Student";
 
               return (
                 <div key={session.id} className="card rounded-2xl p-5">
@@ -155,6 +186,57 @@ export default function Completed() {
                     </span>
                   </div>
 
+                  {/* Other person's reputation */}
+                  {otherProfile && (
+                    <div
+                      className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl mb-3"
+                      style={{
+                        background: "var(--bg-input)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                          }}
+                        >
+                          {(otherProfile.full_name || "?")[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="text-[12px] font-semibold truncate"
+                              style={{ color: "var(--text-1)" }}
+                            >
+                              {otherProfile.full_name || otherLabel}
+                            </span>
+                            <LevelBadge
+                              level={otherProfile.level_name ?? "Newbie"}
+                            />
+                          </div>
+                          <StarRating
+                            rating={otherProfile.rating ?? 0}
+                            count={otherProfile.total_reviews}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setProfileModal(otherId)}
+                        className="text-[11px] font-semibold px-2 py-1 rounded-lg cursor-pointer shrink-0 transition-colors"
+                        style={{
+                          background: "rgba(99,102,241,0.1)",
+                          color: "#818cf8",
+                          border: "1px solid rgba(99,102,241,0.2)",
+                        }}
+                      >
+                        Profile
+                      </button>
+                    </div>
+                  )}
+
                   {/* Review section */}
                   <div
                     className="pt-3"
@@ -198,12 +280,18 @@ export default function Completed() {
           revieweeName={reviewModal.revieweeName}
           onClose={() => setReviewModal(null)}
           onSubmitted={() => {
-            // Refresh reviews map
             setMyReviews((prev) => ({
               ...prev,
-              [reviewModal.session.id]: { rating: 1 }, // placeholder until refetch
+              [reviewModal.session.id]: { rating: 1 },
             }));
           }}
+        />
+      )}
+
+      {profileModal && (
+        <HelperProfileModal
+          helperId={profileModal}
+          onClose={() => setProfileModal(null)}
         />
       )}
     </DashboardLayout>

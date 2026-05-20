@@ -189,14 +189,18 @@ serve(async (req: Request) => {
       return json({ error: "Failed to create session" }, 500);
     }
 
-    // 8b. Record payment
+    // 8b. Record payment — funds go into ESCROW (held) until session completes
     const { error: paymentError } = await supabase.from("payments").insert({
       session_id: session.id,
       user_id: studentId,
+      helper_id: helper_id,
       amount: expectedAmount,
       platform_fee: platformFee,
+      withdrawable_amount: expectedAmount - platformFee,
       transaction_reference: reference,
       status: "success",
+      escrow_status: "held",
+      withdrawal_status: "pending",
       payment_provider: "paystack",
       metadata: {
         paystack_reference: paystackData.data.reference,

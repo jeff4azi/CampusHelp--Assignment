@@ -53,17 +53,36 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080b14] flex items-center justify-center px-4 relative overflow-hidden">
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[400px] bg-indigo-600/8 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
+      style={{ background: "#07090f" }}
+    >
+      {/* Aurora blobs */}
+      <div
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full blur-3xl pointer-events-none aurora-1"
+        style={{
+          background:
+            "radial-gradient(ellipse, rgba(99,102,241,0.1) 0%, transparent 70%)",
+        }}
+      />
+      <div
+        className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] rounded-full blur-3xl pointer-events-none aurora-2"
+        style={{
+          background:
+            "radial-gradient(ellipse, rgba(167,139,250,0.07) 0%, transparent 70%)",
+        }}
+      />
+      {/* Dot grid */}
+      <div className="absolute inset-0 dot-grid opacity-20 pointer-events-none" />
 
       <div className="relative w-full max-w-sm">
         {/* Logo */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 slide-up">
           <Link to="/" className="inline-flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-xl shadow-indigo-900/50 glow-pulse">
-              <AcademicCapIcon className="w-6 h-6 text-white" />
+            <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-2xl shadow-indigo-900/60 glow-pulse float">
+              <AcademicCapIcon className="w-7 h-7 text-white" />
             </div>
-            <span className="text-white font-bold text-xl tracking-tight">
+            <span className="text-white font-bold text-xl tracking-tight gradient-text">
               CampusHelp
             </span>
           </Link>
@@ -72,23 +91,44 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="bg-[#0d1424] border border-white/6 rounded-2xl p-7 shadow-2xl shadow-black/40">
+        <div
+          className="slide-up stagger-1 rounded-2xl p-7 shadow-2xl shadow-black/60"
+          style={{
+            background: "rgba(13,20,36,0.8)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          {/* Top gradient line */}
+          <div
+            className="absolute top-0 left-8 right-8 h-px rounded-full"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent)",
+            }}
+          />
+
           {/* Google button */}
           <button
             type="button"
             onClick={handleGoogle}
             disabled={googleLoading || loading}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 font-semibold py-3 rounded-xl transition-all text-sm cursor-pointer mb-5 shadow-sm"
+            className="shine-btn w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 font-semibold py-3 rounded-xl transition-all text-sm cursor-pointer mb-5 shadow-sm hover:-translate-y-0.5"
           >
             <GoogleIcon />
             {googleLoading ? "Redirecting…" : "Continue with Google"}
           </button>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 mb-5">
-            <div className="flex-1 h-px bg-white/8" />
+            <div
+              className="flex-1 h-px"
+              style={{ background: "rgba(255,255,255,0.07)" }}
+            />
             <span className="text-xs text-gray-600">or sign in with email</span>
-            <div className="flex-1 h-px bg-white/8" />
+            <div
+              className="flex-1 h-px"
+              style={{ background: "rgba(255,255,255,0.07)" }}
+            />
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -135,13 +175,20 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading || googleLoading}
-              className="group mt-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-900/40 hover:-translate-y-0.5 cursor-pointer"
+              className="shine-btn ripple-btn group mt-1 flex items-center justify-center gap-2 text-white font-bold py-3 rounded-xl transition-all cursor-pointer hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                boxShadow: "0 8px 24px rgba(99,102,241,0.4)",
+              }}
             >
               {loading ? (
-                "Signing in…"
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                  Signing in…
+                </>
               ) : (
                 <>
-                  Sign In
+                  Sign In{" "}
                   <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </>
               )}
@@ -149,11 +196,11 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-gray-600 mt-5">
+        <p className="text-center text-sm text-gray-600 mt-5 slide-up stagger-2">
           Don't have an account?{" "}
           <Link
             to="/signup"
-            className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+            className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors animated-underline"
           >
             Create one free
           </Link>

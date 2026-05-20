@@ -5,6 +5,7 @@ import { ClockIcon, CurrencyIcon, PlusIcon } from "./Icons.jsx";
 import ApplyModal from "./ApplyModal.jsx";
 import OffersList from "./OffersList.jsx";
 import ReportModal from "./ReportModal.jsx";
+import MatchedHelpers from "./MatchedHelpers.jsx";
 import { supabase } from "../lib/supabase.js";
 
 function isNew(createdAt) {
@@ -293,6 +294,8 @@ export default function PostCard({ post }) {
         </div>
 
         {isOwner && showOffers && <OffersList post={post} />}
+        {/* AI matched helpers — shown to owner on open posts */}
+        {isOwner && isOpen && !showOffers && <MatchedHelpers post={post} />}
       </div>
 
       {showApply && (

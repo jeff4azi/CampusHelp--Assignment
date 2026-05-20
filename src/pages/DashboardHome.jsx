@@ -18,9 +18,26 @@ import {
 } from "../components/Icons.jsx";
 
 // ── Stat card (only shown when user has data) ─────────────────────────────
-function StatCard({ label, value, sub, Icon, color }) {
+function StatCard({ label, value, sub, Icon, color, glowColor }) {
   return (
-    <div className="card rounded-2xl p-4 flex items-center gap-4">
+    <div
+      className="tilt-card rounded-2xl p-4 flex items-center gap-4 transition-all duration-300 cursor-default"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+        boxShadow: `var(--shadow-card), 0 0 0 0 ${glowColor || "transparent"}`,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = `var(--shadow-card), 0 0 20px ${glowColor || "transparent"}`;
+        e.currentTarget.style.borderColor = glowColor
+          ? glowColor.replace("0.3", "0.4")
+          : "var(--border)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "var(--shadow-card)";
+        e.currentTarget.style.borderColor = "var(--border)";
+      }}
+    >
       <div
         className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}
       >
@@ -50,52 +67,81 @@ function StatCard({ label, value, sub, Icon, color }) {
 function FirstTimeScreen({ onCreatePost }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
-      {/* Icon */}
-      <div className="w-20 h-20 rounded-3xl bg-indigo-600/15 border border-indigo-500/20 flex items-center justify-center mb-6">
-        <BriefcaseIcon className="w-9 h-9 text-indigo-400" />
+      {/* Animated icon */}
+      <div className="relative mb-6">
+        <div
+          className="w-20 h-20 rounded-3xl flex items-center justify-center float"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(167,139,250,0.1))",
+            border: "1px solid rgba(99,102,241,0.3)",
+            boxShadow: "0 0 40px rgba(99,102,241,0.2)",
+          }}
+        >
+          <BriefcaseIcon className="w-9 h-9 text-indigo-400" />
+        </div>
+        {/* Orbiting dot */}
+        <div
+          className="absolute inset-0 rounded-3xl"
+          style={{ animation: "spin-slow 8s linear infinite" }}
+        >
+          <div className="absolute -top-1 left-1/2 w-2 h-2 rounded-full bg-indigo-400 shadow-lg shadow-indigo-400/50" />
+        </div>
       </div>
 
       <h1
-        className="text-2xl sm:text-3xl font-bold mb-3"
+        className="slide-up text-2xl sm:text-3xl font-bold mb-3"
         style={{ color: "var(--text-1)" }}
       >
         What do you need help with?
       </h1>
       <p
-        className="text-sm max-w-sm mb-8 leading-relaxed"
+        className="slide-up stagger-1 text-sm max-w-sm mb-8 leading-relaxed"
         style={{ color: "var(--text-2)" }}
       >
         Post your assignment, set a budget, and get matched with a helper —
         usually within minutes.
       </p>
 
-      {/* Primary CTA */}
       <button
         onClick={onCreatePost}
-        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-3.5 rounded-2xl transition-all shadow-lg shadow-indigo-900/30 hover:-translate-y-0.5 cursor-pointer text-base"
+        className="slide-up stagger-2 shine-btn ripple-btn flex items-center gap-2 text-white font-semibold px-8 py-3.5 rounded-2xl transition-all cursor-pointer text-base hover:-translate-y-1"
+        style={{
+          background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+          boxShadow: "0 8px 32px rgba(99,102,241,0.4)",
+        }}
       >
         <PlusIcon className="w-5 h-5" />
         Create your first request
       </button>
 
-      {/* Secondary — browse */}
       <button
         onClick={() => window.location.assign("/marketplace")}
-        className="mt-4 text-sm transition-colors cursor-pointer"
+        className="slide-up stagger-3 mt-4 text-sm transition-colors cursor-pointer animated-underline"
         style={{ color: "var(--text-3)" }}
       >
         Or browse open jobs →
       </button>
 
-      {/* Steps hint */}
+      {/* Steps */}
       <div className="mt-12 grid grid-cols-3 gap-4 max-w-sm w-full">
         {[
           { step: "1", label: "Post your request" },
           { step: "2", label: "Get matched fast" },
           { step: "3", label: "Work gets done" },
-        ].map(({ step, label }) => (
-          <div key={step} className="flex flex-col items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-indigo-600/15 border border-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-400">
+        ].map(({ step, label }, i) => (
+          <div
+            key={step}
+            className={`flex flex-col items-center gap-2 slide-up stagger-${i + 3}`}
+          >
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-indigo-400"
+              style={{
+                background: "rgba(99,102,241,0.1)",
+                border: "1px solid rgba(99,102,241,0.25)",
+                boxShadow: "0 0 12px rgba(99,102,241,0.15)",
+              }}
+            >
               {step}
             </div>
             <p
@@ -205,6 +251,7 @@ export default function DashboardHome() {
               sub={`${openPosts.length} open`}
               Icon={BriefcaseIcon}
               color="bg-indigo-500/15 text-indigo-400"
+              glowColor="rgba(99,102,241,0.3)"
             />
             <StatCard
               label="Active Sessions"
@@ -212,12 +259,14 @@ export default function DashboardHome() {
               sub={`${helpingSessions.length} helping`}
               Icon={HandshakeIcon}
               color="bg-amber-500/15 text-amber-400"
+              glowColor="rgba(251,191,36,0.3)"
             />
             <StatCard
               label="Completed"
               value={completedSessions.length}
               Icon={CheckCircleIcon}
               color="bg-emerald-500/15 text-emerald-400"
+              glowColor="rgba(52,211,153,0.3)"
             />
             <StatCard
               label="Notifications"
@@ -225,6 +274,7 @@ export default function DashboardHome() {
               sub="unread"
               Icon={BellIcon}
               color="bg-violet-500/15 text-violet-400"
+              glowColor="rgba(167,139,250,0.3)"
             />
           </div>
 

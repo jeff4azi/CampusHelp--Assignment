@@ -41,11 +41,17 @@ export default function PaymentModal({ offer, post, onSuccess, onClose }) {
     loadPaystackScript().then(setScriptLoaded);
   }, []);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll when modal is open — also lock the main scroll container
   useEffect(() => {
+    const scrollEl = document.querySelector("main");
+    const prev = scrollEl?.style.overflow ?? "";
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    if (scrollEl) scrollEl.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+      if (scrollEl) scrollEl.style.overflow = prev;
     };
   }, []);
 
@@ -176,7 +182,18 @@ export default function PaymentModal({ offer, post, onSuccess, onClose }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md px-4 pb-4 sm:pb-0"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.75)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        padding: "16px",
+      }}
       onMouseDown={(e) =>
         e.target === e.currentTarget && !isProcessing && onClose()
       }

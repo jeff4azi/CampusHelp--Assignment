@@ -4,6 +4,8 @@ import { useAuth } from "../hooks/useAuth.js";
 import { usePosts } from "../hooks/usePosts.js";
 import { CheckCircleIcon } from "./Icons.jsx";
 import { improveDescription } from "../utils/openai.js";
+import { suggestBudget } from "../utils/aiMatching.js";
+import { formatCurrency } from "../utils/formatters.js";
 import toast from "react-hot-toast";
 
 const inputCls = `w-full rounded-xl px-3.5 py-2.5 text-[13.5px] transition-all outline-none`;
@@ -36,6 +38,8 @@ export default function CreatePostModal({ onClose }) {
   const [posted, setPosted] = useState(null);
   const [improving, setImproving] = useState(false);
   const [improved, setImproved] = useState(false);
+  const [budgetSuggestion, setBudgetSuggestion] = useState(null);
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
 
   async function handleImprove(e) {
     e.preventDefault();
@@ -49,9 +53,31 @@ export default function CreatePostModal({ onClose }) {
       setImproved(true);
       toast.success("Description improved!");
       setTimeout(() => setImproved(false), 3000);
+      // Auto-suggest budget after improving description
+      if (form.course || better) {
+        handleSuggestBudget(form.course, better);
+      }
     } finally {
       setImproving(false);
     }
+  }
+
+  async function handleSuggestBudget(course, description) {
+    const c = course ?? form.course;
+    const d = description ?? form.description;
+    if (!c.trim() && !d.trim()) return;
+    setLoadingSuggestion(true);
+    try {
+      const suggestion = await suggestBudget(c, d);
+      setBudgetSuggestion(suggestion);
+    } finally {
+      setLoadingSuggestion(false);
+    }
+  }
+
+  function applyBudgetSuggestion(value) {
+    setForm((prev) => ({ ...prev, budget: String(value) }));
+    setBudgetSuggestion(null);
   }
 
   function handleChange(e) {
@@ -327,12 +353,53 @@ export default function CreatePostModal({ onClose }) {
 
           {/* Budget */}
           <div className="flex flex-col gap-1.5">
-            <label
-              className="text-[11px] font-bold uppercase tracking-widest"
-              style={{ color: "var(--text-3)" }}
-            >
-              Budget (NGN ₦)
-            </label>
+            <div className="flex items-center justify-between">
+              <label
+                className="text-[11px] font-bold uppercase tracking-widest"
+                style={{ color: "var(--text-3)" }}
+              >
+                Budget (NGN ₦)
+              </label>
+              <button
+                type="button"
+                onClick={() => handleSuggestBudget()}
+                disabled={
+                  loadingSuggestion ||
+                  (!form.course.trim() && !form.description.trim())
+                }
+                className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: "rgba(99,102,241,0.08)",
+                  color: "#818cf8",
+                  border: "1px solid rgba(99,102,241,0.15)",
+                }}
+              >
+                {loadingSuggestion ? (
+                  <svg
+                    className="w-3 h-3 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8z"
+                    />
+                  </svg>
+                ) : (
+                  <SparklesIcon />
+                )}
+                Suggest
+              </button>
+            </div>
             <input
               name="budget"
               type="number"
@@ -348,6 +415,82 @@ export default function CreatePostModal({ onClose }) {
                 color: "var(--text-1)",
               }}
             />
+            {/* Budget suggestion banner */}
+            {budgetSuggestion && (
+              <div
+                className="flex items-center justify-between rounded-xl px-3 py-2.5 gap-3"
+                style={{
+                  background: "rgba(99,102,241,0.06)",
+                  border: "1px solid rgba(99,102,241,0.15)",
+                }}
+              >
+                <div className="min-w-0">
+                  <p
+                    className="text-[11px] font-semibold"
+                    style={{ color: "#818cf8" }}
+                  >
+                    🤖 AI Budget Suggestion
+                  </p>
+                  <p
+                    className="text-[11px] mt-0.5"
+                    style={{ color: "var(--text-3)" }}
+                  >
+                    {budgetSuggestion.reason} ·{" "}
+                    {formatCurrency(budgetSuggestion.min)}–
+                    {formatCurrency(budgetSuggestion.max)}
+                  </p>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => applyBudgetSuggestion(budgetSuggestion.min)}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                    style={{
+                      background: "rgba(99,102,241,0.15)",
+                      color: "#818cf8",
+                    }}
+                  >
+                    Min
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      applyBudgetSuggestion(
+                        Math.round(
+                          (budgetSuggestion.min + budgetSuggestion.max) / 2,
+                        ),
+                      )
+                    }
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg cursor-pointer text-white"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    Mid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyBudgetSuggestion(budgetSuggestion.max)}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                    style={{
+                      background: "rgba(99,102,241,0.15)",
+                      color: "#818cf8",
+                    }}
+                  >
+                    Max
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBudgetSuggestion(null)}
+                    className="text-[10px] px-1.5 py-1 rounded-lg cursor-pointer"
+                    style={{
+                      color: "var(--text-3)",
+                      background: "var(--bg-hover)",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Buttons */}

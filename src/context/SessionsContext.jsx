@@ -1,6 +1,13 @@
-import { createContext, useState, useCallback } from "react";
+import {
+  createContext,
+  useState,
+  useCallback,
+  useEffect,
+  useContext,
+} from "react";
 import { supabase } from "../lib/supabase.js";
 import { analytics } from "../utils/analytics.js";
+import { AuthContext } from "./AuthContext.jsx";
 
 export const SessionsContext = createContext(null);
 
@@ -33,7 +40,8 @@ function mapSession(s) {
 
 export function SessionsProvider({ children }) {
   const [sessions, setSessions] = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const { user } = useContext(AuthContext) ?? {};
 
   const fetchSessions = useCallback(async (userId) => {
     if (!userId) return;
@@ -46,6 +54,16 @@ export function SessionsProvider({ children }) {
     if (!error && data) setSessions(data.map(mapSession));
     setSessionsLoading(false);
   }, []);
+
+  // Auto-fetch sessions whenever the logged-in user changes
+  useEffect(() => {
+    if (user?.id) {
+      fetchSessions(user.id);
+    } else {
+      setSessions([]);
+      setSessionsLoading(false);
+    }
+  }, [user?.id, fetchSessions]);
 
   async function createSession({
     postId,
@@ -83,6 +101,7 @@ export function SessionsProvider({ children }) {
         withdrawable_amount: budget * HELPER_SHARE_PERCENT,
         transaction_reference: paymentData.reference,
         status: "success",
+        escrow_status: "held",
         withdrawal_status: "pending",
         metadata: paymentData.metadata ?? null,
       });
@@ -129,7 +148,7 @@ export function SessionsProvider({ children }) {
         .eq("id", session.postId);
       if (postErr) console.error("Post status update failed:", postErr);
 
-      // 4. Update payment to available_for_withdrawal
+      // 4. Release escrow — set escrow_status = 'released' + available_for_withdrawal
       const helperShare = session.amount
         ? session.amount * HELPER_SHARE_PERCENT
         : null;
@@ -138,8 +157,11 @@ export function SessionsProvider({ children }) {
           .from("payments")
           .update({
             status: "available_for_withdrawal",
+            escrow_status: "released",
+            escrow_released_at: new Date().toISOString(),
             withdrawable_amount: helperShare,
             helper_id: session.helperId,
+            withdrawal_status: "pending",
             updated_at: new Date().toISOString(),
           })
           .eq("session_id", sessionId);
